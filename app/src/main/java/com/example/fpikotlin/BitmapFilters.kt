@@ -119,8 +119,8 @@ class BitmapFilters {
 
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
         val lowestValueCorrected = kotlin.math.max(0.0, lowestValue - 0.5)
-        var lowerLimit = 0.0
-        var upperLimit = 0.0
+        var lowerLimit: Double
+        var upperLimit: Double
 
         for (i in pixels.indices) {
             val pixelLuminance = pixels[i] and 0XFF
@@ -134,5 +134,96 @@ class BitmapFilters {
 
         bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
         return bitmap
+    }
+
+    fun adjustBrightness(bitmap: Bitmap?, factor: Int): Bitmap? {
+        if (bitmap == null) {
+            return null
+        }
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        val pixelRange = 0..255
+        val acceptedInterval = -255 .. 255
+        val acceptedFactor = factor.coerceIn(acceptedInterval)
+
+        for(i in pixels.indices) {
+            val pixel = pixels[i]
+            val red = (pixel shr 16) and 0xFF
+            val green = (pixel shr 8) and 0xFF
+            val blue = pixel and 0xFF
+
+            val newRed = (red + acceptedFactor).coerceIn(pixelRange)
+            val newGreen = (green + acceptedFactor).coerceIn(pixelRange)
+            val newBlue = (blue + acceptedFactor).coerceIn(pixelRange)
+
+            pixels[i] = (newRed shl 16) or (newGreen shl 8) or newBlue or (0xFF shl 24)
+        }
+
+        val resultBitmap = Bitmap.createBitmap(width, height, bitmap.config)
+        resultBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+
+        return resultBitmap
+    }
+
+    fun adjustContrast(bitmap: Bitmap?, factor: Int): Bitmap? {
+        if (bitmap == null) {
+            return null
+        }
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        val pixelRange = 0..255
+        val acceptedFactor = kotlin.math.abs(factor)
+
+        for(i in pixels.indices) {
+            val pixel = pixels[i]
+            val red = (pixel shr 16) and 0xFF
+            val green = (pixel shr 8) and 0xFF
+            val blue = pixel and 0xFF
+
+            val newRed = (red * acceptedFactor).coerceIn(pixelRange)
+            val newGreen = (green * acceptedFactor).coerceIn(pixelRange)
+            val newBlue = (blue * acceptedFactor).coerceIn(pixelRange)
+
+            pixels[i] = (newRed shl 16) or (newGreen shl 8) or newBlue or (0xFF shl 24)
+        }
+
+        val resultBitmap = Bitmap.createBitmap(width, height, bitmap.config)
+        resultBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+
+        return resultBitmap
+    }
+
+    fun getNegative(bitmap: Bitmap?): Bitmap? {
+        if (bitmap == null) {
+            return null
+        }
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        for(i in pixels.indices) {
+            val pixel = pixels[i]
+            val red = (pixel shr 16) and 0xFF
+            val green = (pixel shr 8) and 0xFF
+            val blue = pixel and 0xFF
+
+            val newRed = 255 - red
+            val newGreen = 255 - green
+            val newBlue = 255 - blue
+
+            pixels[i] = (newRed shl 16) or (newGreen shl 8) or newBlue or (0xFF shl 24)
+        }
+
+        val resultBitmap = Bitmap.createBitmap(width, height, bitmap.config)
+        resultBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+
+        return resultBitmap
     }
 }
