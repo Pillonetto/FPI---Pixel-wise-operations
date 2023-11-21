@@ -71,6 +71,16 @@ class BitmapFilters {
         return flippedBitmap
     }
 
+//    fun flipSidewaysPos(bitmap: Bitmap?): Bitmap?
+//    {
+//        if (bitmap == null) {
+//            return null
+//        }
+//
+//
+//
+//    }
+
     fun makeLuminance(bitmap: Bitmap?): Bitmap? {
         if (bitmap == null) {
             return bitmap
