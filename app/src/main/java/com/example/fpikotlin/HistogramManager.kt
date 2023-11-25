@@ -54,10 +54,7 @@ class HistogramManager {
      */
     fun equalizeHistogram(image: Bitmap, histogram: IntArray?, isGrayScale: Boolean?): Bitmap {
         val grayscaleImage = isGrayScale?.let { image } ?: run { BitmapFilters().makeLuminance(image) }
-
-        if(grayscaleImage == null) {
-            return image
-        }
+        ?: return image
 
         val width = grayscaleImage.width
         val height = grayscaleImage.height
@@ -74,5 +71,45 @@ class HistogramManager {
         }
 
         return Bitmap.createBitmap(pixels, width, height, grayscaleImage.config)
+    }
+
+    fun matchHistograms(image: Bitmap, target: Bitmap): Bitmap {
+        val targetGrayscale = BitmapFilters().makeLuminance(target);
+
+        val width = image.width
+        val height = image.height
+        val pixels = IntArray(width * height)
+        image.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        val srcHistogram = this.getHistogramArray(image, pixels);
+
+        val targetWidth = image.width
+        val targetHeight = image.height
+        val targetPixels = IntArray(width * height)
+        target.getPixels(targetPixels, 0, width, 0, 0, width, height)
+
+        val targetHistogram = this.getHistogramArray(targetGrayscale, targetPixels);
+
+        var scalingFactor = 255 / (width * height).toFloat()
+        val cumulativeSrcHistogram = this.getCumulativeHistogram(srcHistogram, scalingFactor);
+        scalingFactor = 255 / (targetWidth * targetHeight).toFloat()
+        val cumulativeTargetHistogram = this.getCumulativeHistogram(targetHistogram, scalingFactor);
+
+        val mappedValues = IntArray(256);
+
+        for(i in 0..255) {
+            var j = 255
+            while (j >= 0) {
+                if(cumulativeSrcHistogram[i] == cumulativeTargetHistogram[j])
+                mappedValues[i] = j
+                j--
+            }
+        }
+
+        for (i in pixels.indices) {
+            pixels[i] = mappedValues[pixels[i] and 0xFF]
+        }
+
+        return Bitmap.createBitmap(pixels, width, height, image.config);
     }
 }

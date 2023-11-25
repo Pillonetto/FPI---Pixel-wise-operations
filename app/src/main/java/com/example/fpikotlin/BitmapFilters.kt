@@ -1,6 +1,7 @@
 package com.example.fpikotlin
 
 import android.graphics.Bitmap
+import android.graphics.Matrix
 
 class BitmapFilters {
     var lowestValue = 0
@@ -71,15 +72,78 @@ class BitmapFilters {
         return flippedBitmap
     }
 
-//    fun flipSidewaysPos(bitmap: Bitmap?): Bitmap?
-//    {
-//        if (bitmap == null) {
-//            return null
-//        }
-//
-//
-//
-//    }
+    fun flip90Positive(bitmap: Bitmap?): Bitmap?
+    {
+        if (bitmap == null) {
+            return bitmap
+        }
+        val width = bitmap.width
+        val height = bitmap.height
+
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+        val pixelMatrix = Array(height) { Array(width) { 0 } }
+        for(i in 0 until height) {
+            for(j in 0 until width) {
+                pixelMatrix[i][j] = pixels[i * width + j]
+            }
+        }
+
+        val transposedMatrix = transposeMatrix(pixelMatrix)
+        for(i in 0 until height) {
+            transposedMatrix[i].reverse();
+        }
+        val newPixels = transposedMatrix.flatMap { it.asIterable() }.toIntArray()
+
+        val resultBitmap = Bitmap.createBitmap(height, width, bitmap.config)
+        resultBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
+
+        return resultBitmap
+    }
+
+    fun flip90Negative(bitmap: Bitmap?): Bitmap?
+    {
+        if (bitmap == null) {
+            return bitmap
+        }
+        val width = bitmap.width
+        val height = bitmap.height
+
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+        val pixelMatrix = Array(height) { Array(width) { 0 } }
+        for(i in 0 until height) {
+            for(j in 0 until width) {
+                pixelMatrix[i][j] = pixels[i * width + j]
+            }
+        }
+
+        for(i in 0 until height) {
+            pixelMatrix[i].reverse();
+        }
+        val transposedMatrix = transposeMatrix(pixelMatrix)
+        val newPixels = transposedMatrix.flatMap { it.asIterable() }.toIntArray()
+
+        val resultBitmap = Bitmap.createBitmap(height, width, bitmap.config)
+        resultBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
+
+        return resultBitmap
+    }
+
+    // Function to transpose a matrix
+    fun transposeMatrix(matrix: Array<Array<Int>>): Array<Array<Int>> {
+        val rows = matrix.size
+        val columns = matrix[0].size
+        val transposedMatrix = Array(columns) { Array(rows) { 0 } }
+
+        for (i in 0 until rows) {
+            for (j in 0 until columns) {
+                transposedMatrix[j][i] = matrix[i][j]
+            }
+        }
+
+        return transposedMatrix
+    }
 
     fun makeLuminance(bitmap: Bitmap?): Bitmap? {
         if (bitmap == null) {
