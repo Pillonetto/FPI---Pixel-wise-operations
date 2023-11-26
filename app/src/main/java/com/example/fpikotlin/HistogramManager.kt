@@ -101,7 +101,7 @@ class HistogramManager {
             var j = 255
             while (j >= 0) {
                 if(cumulativeSrcHistogram[i] == cumulativeTargetHistogram[j])
-                mappedValues[i] = j
+                    mappedValues[i] = j
                 j--
             }
         }
@@ -112,4 +112,5 @@ class HistogramManager {
 
         return Bitmap.createBitmap(pixels, width, height, image.config);
     }
+
 }
