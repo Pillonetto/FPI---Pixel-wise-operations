@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -13,12 +14,16 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -60,6 +65,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -89,6 +95,37 @@ class MainActivity : ComponentActivity() {
                 .padding(top = 40.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
         )
+    }
+
+    @Composable
+    fun Histogram(histogram: IntArray?, pixelCount: Int) {
+        if (histogram == null) {
+            Log.d("DEBUG", "isNull")
+            return
+        }
+        val configuration = LocalConfiguration.current
+        Log.d("DEBUG", configuration.screenHeightDp.toString())
+        Log.d("DEBUG", pixelCount.toString())
+        Row(
+            modifier = Modifier.fillMaxHeight(0.85f).fillMaxWidth(),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            histogram.forEach { value ->
+                Log.d("DEBUG", value.toString())
+                Log.d("HEIGHT", (value * 1000 / pixelCount).toString())
+                Surface (
+                    modifier = Modifier
+                        .padding(horizontal = 5.dp)
+                        .height(Math.max(value * 10000 / pixelCount, 10).dp)
+                        .width(10.dp)
+                        .weight(1f)
+                        .border(10.dp, accentColor),
+                    color = accentColor
+                ) {
+                    Spacer(modifier = Modifier.fillMaxHeight())}
+            }
+        }
     }
 
     @Composable
@@ -170,15 +207,16 @@ class MainActivity : ComponentActivity() {
         val showConvolution: MutableState<Boolean> = remember { mutableStateOf(false) }
         val grayConv: MutableState<Boolean> = remember { mutableStateOf(false) }
         val conv127: MutableState<Boolean> = remember { mutableStateOf(false) }
-        val kernel: MutableState<Array<Array<Double>>> = remember { mutableStateOf(ConvolutionFiltersEnum.GAUSSIAN.getKernel()) }
+        val kernel: MutableState<Array<Array<Double>>> =
+            remember { mutableStateOf(ConvolutionFiltersEnum.GAUSSIAN.getKernel()) }
         val xZoom: MutableState<String> = remember { mutableStateOf("0") }
         val yZoom: MutableState<String> = remember { mutableStateOf("0") }
         val sliderPosition: MutableState<Int> = remember { mutableStateOf(0) }
         val isLoading: MutableState<Boolean> = remember { mutableStateOf(false) }
+        val showHistogram: MutableState<Boolean> = remember { mutableStateOf(false) }
 
         var bitmapFilters = BitmapFilters()
         var histogramManager = HistogramManager()
-
 
         val pickMedia =
             rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -191,6 +229,7 @@ class MainActivity : ComponentActivity() {
                         val bitmap =
                             ImageDecoder.decodeBitmap(source).copy(Bitmap.Config.RGBA_F16, true)
                         imageBitmap.value = bitmap
+                        histogramManager.histogram = null
                     }
                 }
             }
@@ -278,6 +317,34 @@ class MainActivity : ComponentActivity() {
                             Icon(
                                 imageVector = ImageVector.vectorResource(id = R.drawable.baseline_invert_colors_24),
                                 contentDescription = "Quantize Gray Scale Image"
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                if (histogramManager.histogram == null && imageBitmap.value != null) {
+                                    val width = imageBitmap.value!!.width
+                                    val height = imageBitmap.value!!.height
+                                    val pixels = IntArray(width * height)
+                                    imageBitmap.value!!.getPixels(
+                                        pixels,
+                                        0,
+                                        width,
+                                        0,
+                                        0,
+                                        width,
+                                        height
+                                    )
+                                    histogramManager.histogram = histogramManager.getHistogramArray(
+                                        imageBitmap.value!!,
+                                        pixels
+                                    )
+                                }
+                                showHistogram.value = !showHistogram.value
+                            },
+                        ) {
+                            Icon(
+                                imageVector = ImageVector.vectorResource(id = R.drawable.baseline_bar_chart_24),
+                                contentDescription = "Build Histogram"
                             )
                         }
                         IconButton(
@@ -401,6 +468,11 @@ class MainActivity : ComponentActivity() {
                     ) {
                         if (isLoading.value) {
                             IndeterminateCircularIndicator()
+                        } else if (showHistogram.value && imageBitmap.value != null) {
+                            Histogram(
+                                histogramManager.histogram,
+                                imageBitmap.value!!.height * imageBitmap.value!!.width
+                            )
                         } else {
                             BitmapImage(imageBitmap.value)
                         }
@@ -451,7 +523,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        if(showConvolution.value) {
+                        if (showConvolution.value) {
                             ConvolutionFields(kernel, grayConv, conv127) {
                                 if (imageBitmap.value != null) {
                                     imageBitmap.value =
@@ -464,6 +536,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+
                     }
                 }
             }
@@ -500,14 +573,15 @@ class MainActivity : ComponentActivity() {
         onConfirm: () -> Unit
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
                 .height(80.0.dp)
                 .padding(10.dp)
         ) {
-            val onChangeX : (String) -> Unit = { it ->
+            val onChangeX: (String) -> Unit = { it ->
                 xValue.value = it  // it is supposed to be this
             }
-            val onChangeY : (String) -> Unit = { it ->
+            val onChangeY: (String) -> Unit = { it ->
                 yValue.value = it  // it is supposed to be this
             }
             BasicTextField(
@@ -540,39 +614,74 @@ class MainActivity : ComponentActivity() {
     ) {
         Column(Modifier.horizontalScroll(rememberScrollState())) {
             Row {
-                Button(onClick = { kernel.value = ConvolutionFiltersEnum.GAUSSIAN.getKernel(); gray.value = false; sum127.value = false }, colors = ButtonDefaults.textButtonColors(
-                    containerColor = accentColor
-                )) {
+                Button(
+                    onClick = {
+                        kernel.value = ConvolutionFiltersEnum.GAUSSIAN.getKernel(); gray.value =
+                        false; sum127.value = false
+                    }, colors = ButtonDefaults.textButtonColors(
+                        containerColor = accentColor
+                    )
+                ) {
                     Text("Gaussian")
                 }
-                Button(onClick = { kernel.value = ConvolutionFiltersEnum.LAPLACIAN.getKernel(); gray.value = true; sum127.value = false }, colors = ButtonDefaults.textButtonColors(
-                    containerColor = accentColor
-                )) {
+                Button(
+                    onClick = {
+                        kernel.value = ConvolutionFiltersEnum.LAPLACIAN.getKernel(); gray.value =
+                        true; sum127.value = false
+                    }, colors = ButtonDefaults.textButtonColors(
+                        containerColor = accentColor
+                    )
+                ) {
                     Text("Laplacian")
                 }
-                Button(onClick = { kernel.value = ConvolutionFiltersEnum.HIGH_PASS.getKernel(); gray.value = true; sum127.value = false }, colors = ButtonDefaults.textButtonColors(
-                    containerColor = accentColor
-                )) {
+                Button(
+                    onClick = {
+                        kernel.value = ConvolutionFiltersEnum.HIGH_PASS.getKernel(); gray.value =
+                        true; sum127.value = false
+                    }, colors = ButtonDefaults.textButtonColors(
+                        containerColor = accentColor
+                    )
+                ) {
                     Text("High Pass")
                 }
-                Button(onClick = {kernel.value = ConvolutionFiltersEnum.PREWITT_HX.getKernel(); gray.value = true; sum127.value = true }, colors = ButtonDefaults.textButtonColors(
-                    containerColor = accentColor
-                )) {
+                Button(
+                    onClick = {
+                        kernel.value = ConvolutionFiltersEnum.PREWITT_HX.getKernel(); gray.value =
+                        true; sum127.value = true
+                    }, colors = ButtonDefaults.textButtonColors(
+                        containerColor = accentColor
+                    )
+                ) {
                     Text("Prewitt H")
                 }
-                Button(onClick = { kernel.value = ConvolutionFiltersEnum.PREWITT_HY.getKernel(); gray.value = true; sum127.value = true }, colors = ButtonDefaults.textButtonColors(
-                    containerColor = accentColor
-                )) {
+                Button(
+                    onClick = {
+                        kernel.value = ConvolutionFiltersEnum.PREWITT_HY.getKernel(); gray.value =
+                        true; sum127.value = true
+                    }, colors = ButtonDefaults.textButtonColors(
+                        containerColor = accentColor
+                    )
+                ) {
                     Text("Prewitt V")
                 }
-                Button(onClick = { kernel.value = ConvolutionFiltersEnum.SOBEL_HX.getKernel(); gray.value = true; sum127.value = true }, colors = ButtonDefaults.textButtonColors(
-                    containerColor = accentColor
-                )) {
+                Button(
+                    onClick = {
+                        kernel.value = ConvolutionFiltersEnum.SOBEL_HX.getKernel(); gray.value =
+                        true; sum127.value = true
+                    }, colors = ButtonDefaults.textButtonColors(
+                        containerColor = accentColor
+                    )
+                ) {
                     Text("Sobel H")
                 }
-                Button(onClick = { kernel.value = ConvolutionFiltersEnum.SOBEL_HY.getKernel(); gray.value = true; sum127.value = true }, colors = ButtonDefaults.textButtonColors(
-                    containerColor = accentColor
-                )) {
+                Button(
+                    onClick = {
+                        kernel.value = ConvolutionFiltersEnum.SOBEL_HY.getKernel(); gray.value =
+                        true; sum127.value = true
+                    }, colors = ButtonDefaults.textButtonColors(
+                        containerColor = accentColor
+                    )
+                ) {
                     Text("Sobel Y")
                 }
                 IconButton(
@@ -585,12 +694,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
             Row(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
                     .height(100.0.dp)
             ) {
-                for(i in kernel.value.indices) {
+                for (i in kernel.value.indices) {
                     for (j in kernel.value[i].indices) {
-                        val onChange : (String) -> Unit = { it ->
+                        val onChange: (String) -> Unit = { it ->
                             kernel.value[i][j] = it.toDouble()
                         }
                         BasicTextField(

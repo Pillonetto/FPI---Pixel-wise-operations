@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.util.Log
 
 class HistogramManager {
+    var histogram: IntArray? = null
     /**
      *  Returns array of histogram values.
      *  @param image - Bitmap grayscale image.
