@@ -1,6 +1,7 @@
 package com.example.fpikotlin
 
 import android.graphics.Bitmap
+import android.util.Log
 
 class HistogramManager {
     /**
@@ -24,7 +25,7 @@ class HistogramManager {
 
         pixels.forEach { pixel ->
             val luminance = pixel and 0xFF
-            histogramArray[luminance]++
+            histogramArray[(luminance).coerceIn(0..254)]++
         }
 
         return histogramArray
@@ -35,11 +36,12 @@ class HistogramManager {
      *
      *  @param histogram - Array of histogram values.
      */
-    private fun getCumulativeHistogram(histogram: IntArray, scalingFactor: Float): IntArray {
+    private fun getCumulativeHistogram(histogram: IntArray, scalingFactor: Double): IntArray {
         val cumulativeHistogram = IntArray(256)
+        Log.d("DEBUG", scalingFactor.toString())
         cumulativeHistogram[0] = histogram[0] * scalingFactor.toInt()
-        for (i in 1..cumulativeHistogram.size) {
-            cumulativeHistogram[i] = cumulativeHistogram[i - 1] + histogram[i] * scalingFactor.toInt()
+        for (i in 1 until cumulativeHistogram.size) {
+            cumulativeHistogram[i] = cumulativeHistogram[i - 1] + (histogram[i] * scalingFactor).toInt()
         }
         return cumulativeHistogram
     }
@@ -61,13 +63,17 @@ class HistogramManager {
         val pixels = IntArray(width * height)
         grayscaleImage.getPixels(pixels, 0, width, 0, 0, width, height)
 
-        val scalingFactor = 255 / (width * height).toFloat()
+        val scalingFactor = 255.0 / (width * height).toDouble()
 
         val nonNullHistogram = histogram?.let { it } ?: getHistogramArray(grayscaleImage, pixels)
         val cumulativeHistogram = getCumulativeHistogram(nonNullHistogram, scalingFactor)
 
         for (i in pixels.indices) {
-            pixels[i] = cumulativeHistogram[pixels[i] and 0xFF]
+            val value = cumulativeHistogram[pixels[i] and 0xFF]
+            val red = value
+            val blue = value
+            val green = value
+            pixels[i] = (red shl 16) or (green shl 8) or blue or (0xFF shl 24)
         }
 
         return Bitmap.createBitmap(pixels, width, height, grayscaleImage.config)
@@ -90,9 +96,9 @@ class HistogramManager {
 
         val targetHistogram = this.getHistogramArray(targetGrayscale, targetPixels);
 
-        var scalingFactor = 255 / (width * height).toFloat()
+        var scalingFactor = 255.0 / (width * height).toDouble()
         val cumulativeSrcHistogram = this.getCumulativeHistogram(srcHistogram, scalingFactor);
-        scalingFactor = 255 / (targetWidth * targetHeight).toFloat()
+        scalingFactor = 255.0 / (targetWidth * targetHeight).toDouble()
         val cumulativeTargetHistogram = this.getCumulativeHistogram(targetHistogram, scalingFactor);
 
         val mappedValues = IntArray(256);

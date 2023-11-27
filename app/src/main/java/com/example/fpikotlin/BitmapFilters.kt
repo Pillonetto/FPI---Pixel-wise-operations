@@ -1,6 +1,7 @@
 package com.example.fpikotlin
 
 import android.graphics.Bitmap
+import android.util.Log
 
 class BitmapFilters {
     var lowestValue = 0
@@ -89,13 +90,13 @@ class BitmapFilters {
         }
 
         val transposedMatrix = transposeMatrix(pixelMatrix)
-        for(i in 0 until height) {
+        for(i in 0 until height - 1) {
             transposedMatrix[i].reverse();
         }
         val newPixels = transposedMatrix.flatMap { it.asIterable() }.toIntArray()
 
         val resultBitmap = Bitmap.createBitmap(height, width, bitmap.config)
-        resultBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
+        resultBitmap.setPixels(newPixels, 0, width, 0, 0, height, width)
 
         return resultBitmap
     }
@@ -109,6 +110,7 @@ class BitmapFilters {
         val height = bitmap.height
 
         val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
         val pixelMatrix = getMatrixFromPixels(pixels, width, height)
 
         for(i in 0 until height) {
@@ -118,7 +120,7 @@ class BitmapFilters {
         val newPixels = transposedMatrix.flatMap { it.asIterable() }.toIntArray()
 
         val resultBitmap = Bitmap.createBitmap(height, width, bitmap.config)
-        resultBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
+        resultBitmap.setPixels(newPixels, 0, height, 0, 0, height, width)
 
         return resultBitmap
     }
@@ -245,7 +247,7 @@ class BitmapFilters {
         return resultBitmap
     }
 
-    fun adjustContrast(bitmap: Bitmap?, factor: Int): Bitmap? {
+    fun adjustContrast(bitmap: Bitmap?, factor: Float): Bitmap? {
         if (bitmap == null) {
             return null
         }
@@ -263,9 +265,9 @@ class BitmapFilters {
             val green = (pixel shr 8) and 0xFF
             val blue = pixel and 0xFF
 
-            val newRed = (red * acceptedFactor).coerceIn(pixelRange)
-            val newGreen = (green * acceptedFactor).coerceIn(pixelRange)
-            val newBlue = (blue * acceptedFactor).coerceIn(pixelRange)
+            val newRed = (red * acceptedFactor).toInt().coerceIn(pixelRange)
+            val newGreen = (green * acceptedFactor).toInt().coerceIn(pixelRange)
+            val newBlue = (blue * acceptedFactor).toInt().coerceIn(pixelRange)
 
             pixels[i] = (newRed shl 16) or (newGreen shl 8) or newBlue or (0xFF shl 24)
         }
@@ -309,6 +311,7 @@ class BitmapFilters {
         val height = image.height
 
         val pixels = IntArray(width * height)
+        image.getPixels(pixels, 0, width, 0, 0, width, height)
         val pixelMatrix = getMatrixFromPixels(pixels, width, height)
 
         val newWidth = width / sX
@@ -346,62 +349,49 @@ class BitmapFilters {
         return resultBitmap
     }
 
+    fun pixelInterpolation(
+        image: Array<Array<Int>>,
+        x: Int,
+        y: Int
+    ): Int {
+        val x1 = x
+        val y1 = y
+        val x2 = x1 + 1
+        val y2 = y1 + 1
+
+        val q11 = image.getOrElse(x1) { Array(0) { 0 } }.getOrElse(y1) { 0 }
+        val q21 = image.getOrElse(x2) { Array(0) { 0 } }.getOrElse(y1) { 0 }
+        val q12 = image.getOrElse(x1) { Array(0) { 0 } }.getOrElse(y2) { 0 }
+        val q22 = image.getOrElse(x2) { Array(0) { 0 } }.getOrElse(y2) { 0 }
+
+        val r1 = ((x2 - x) / (x2 - x1)) * q11 + ((x - x1) / (x2 - x1)) * q21
+        val r2 = ((x2 - x) / (x2 - x1)) * q12 + ((x - x1) / (x2 - x1)) * q22
+
+        return ((y2 - y) / (y2 - y1)) * r1 + ((y - y1) / (y2 - y1)) * r2
+    }
+
     fun zoomIn(image: Bitmap): Bitmap {
         val width = image.width
         val height = image.height
 
         val pixels = IntArray(width * height)
+        image.getPixels(pixels, 0, width, 0, 0, width, height)
         val pixelMatrix = getMatrixFromPixels(pixels, width, height)
 
         val newWidth = width * 2
         val newHeight = height * 2
 
         var newPixels = getMatrixFromPixels(IntArray(newWidth * newHeight), newWidth, newHeight)
-        // New pixels across width
-        for(i in 0 until height) {
-            for(j in 1 until newWidth step 2) {
-                val fstPixel = pixelMatrix[i][(j/2 - 1)]
-                val sndPixel = pixelMatrix[i][(j/2)]
+        for (x in 0 until newWidth) {
+            for (y in 0 until newHeight) {
+                val imageX = x / 2
+                val imageY = y / 2
 
-                val red1 = (fstPixel shr 16) and 0xFF
-                val red2 = (sndPixel shr 16) and 0xFF
-                val green1 = (fstPixel shr 8) and 0xFF
-                val green2 = (sndPixel shr 8) and 0xFF
-                val blue1 = fstPixel and 0xFF
-                val blue2 = sndPixel and 0xFF
+                val pixelValue = pixelInterpolation(
+                    pixelMatrix, imageX, imageY
+                )
 
-                var intRed = (red1 + red2) / 2
-                var intGreen = (green1 + green2) / 2
-                var intBlue = (blue1 + blue2) / 2
-
-                val newPixel = (intRed shl 16) or (intGreen shl 8) or intBlue or (0xFF shl 24)
-                newPixels[i][j-1] = fstPixel
-                newPixels[i][j] = newPixel
-                newPixels[i][j + 1] = sndPixel
-            }
-        }
-
-        // New pixels across height
-        for(i in 1 until newHeight step 2) {
-            for(j in 0 until newWidth) {
-                val fstPixel = newPixels[(i/2 - 1)][j]
-                val sndPixel = newPixels[(i/2)][j]
-
-                val red1 = (fstPixel shr 16) and 0xFF
-                val red2 = (sndPixel shr 16) and 0xFF
-                val green1 = (fstPixel shr 8) and 0xFF
-                val green2 = (sndPixel shr 8) and 0xFF
-                val blue1 = fstPixel and 0xFF
-                val blue2 = sndPixel and 0xFF
-
-                var intRed = (red1 + red2) / 2
-                var intGreen = (green1 + green2) / 2
-                var intBlue = (blue1 + blue2) / 2
-
-                val newPixel = (intRed shl 16) or (intGreen shl 8) or intBlue or (0xFF shl 24)
-                newPixels[i-1][j] = fstPixel
-                newPixels[i][j] = newPixel
-                newPixels[i + 1][j] = sndPixel
+                newPixels[x][y] = pixelValue
             }
         }
 
@@ -410,43 +400,42 @@ class BitmapFilters {
         return resultBitmap
     }
 
-    fun applyConvolution(image: Bitmap, kernel: Array<Array<Int>>): Bitmap {
+    fun convolve(imagePixels: Array<Array<Int>>, kernel: Array<Array<Double>>, startX: Int, startY: Int): Int {
+        var sum = 0.0
+
+        // Iterate through the kernel
+        for (i in 0 until 3) {
+            for (j in 0 until 3) {
+                val luminanceValue = imagePixels[startX + i][startY + j] and 0xFF
+                // Apply the kernel to the corresponding pixel in the input image
+                sum += luminanceValue * kernel[i][j]
+            }
+        }
+
+        return sum.toInt()
+    }
+
+    fun applyConvolution(image: Bitmap, kernel: Array<Array<Double>>, bGrayScale: Boolean?, sum127: Boolean?): Bitmap {
         val width = image.width
         val height = image.height
 
         val pixels = IntArray(width * height)
+        if(bGrayScale == true) {
+            var grayScaleImage = this.makeLuminance(image)
+            grayScaleImage!!.getPixels(pixels, 0, width, 0, 0, width, height)
+        } else {
+            image.getPixels(pixels, 0, width, 0, 0, width, height)
+        }
         val pixelMatrix = getMatrixFromPixels(pixels, width, height)
 
-        val newPixels = getMatrixFromPixels(IntArray(width * height), width, height)
-
-        val kernelSize = kernel.size
-        val kernelHalfSize = kernelSize / 2
-
-        for(i in 0 until height) {
-            for(j in 0 until width) {
-                var newRed = 0
-                var newGreen = 0
-                var newBlue = 0
-
-                for(k in 0 until kernelSize) {
-                    for(l in 0 until kernelSize) {
-                        val pixel = pixelMatrix[i + k - kernelHalfSize][j + l - kernelHalfSize]
-                        val red = (pixel shr 16) and 0xFF
-                        val green = (pixel shr 8) and 0xFF
-                        val blue = pixel and 0xFF
-
-                        newRed += red * kernel[k][l]
-                        newGreen += green * kernel[k][l]
-                        newBlue += blue * kernel[k][l]
-                    }
-                }
-
-                newRed = newRed.coerceIn(0..255)
-                newGreen = newGreen.coerceIn(0..255)
-                newBlue = newBlue.coerceIn(0..255)
-
-                val newPixel = (newRed shl 16) or (newGreen shl 8) or newBlue or (0xFF shl 24)
-                newPixels[i][j] = newPixel
+        // Create a new array to store the convolved image
+        val newPixels = Array(width) { Array(height) { 0 } }
+        // Iterate through the input image
+        for (x in 1 until width - 1) {
+            for (y in 1 until height - 1) {
+                // Apply the convolution operation
+                val value = (convolve(pixelMatrix, kernel, x - 1, y - 1) + if(sum127 == true) 127 else 0).coerceIn(0..255)
+                newPixels[x][y] = (value shl 16) or (value shl 8) or value or (0xFF shl 24)
             }
         }
 
