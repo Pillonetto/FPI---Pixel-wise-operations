@@ -244,7 +244,7 @@ class MainActivity : ComponentActivity() {
                     TopAppBar(
                         title = {
                             Text(
-                                "FPI - Trabalho 1 - 2023/2",
+                                "FPI - Trabalho 2 - 2023/2",
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
