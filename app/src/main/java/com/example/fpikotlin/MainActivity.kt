@@ -80,7 +80,7 @@ class MainActivity : ComponentActivity() {
 
     var imageSaver = ImageSaver(this)
 
-    override fun onCreate (savedInstanceState: Bundle?) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             setPageContent()
